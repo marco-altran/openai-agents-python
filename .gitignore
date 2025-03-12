@@ -135,10 +135,14 @@ dmypy.json
 cython_debug/
 
 # PyCharm
-#.idea/
+.idea/
 
 # Ruff stuff:
 .ruff_cache/
 
 # PyPI configuration file
 .pypirc
+
+# PHP specific
+openai-agents-php/.phpunit.cache/
+openai-agents-php/vendor/

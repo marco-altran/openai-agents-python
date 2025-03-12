@@ -72,7 +72,7 @@ class OpenAIModel implements ModelInterface
                 'message_count' => count($messages),
             ]);
             
-            $response = $this->client->post('/chat/completions', [
+            $response = $this->client->post('/v1/chat/completions', [
                 'json' => $payload,
             ]);
             
@@ -105,7 +105,7 @@ class OpenAIModel implements ModelInterface
             'message_count' => count($messages),
         ]);
         
-        $guzzlePromise = $this->client->postAsync('/chat/completions', [
+        $guzzlePromise = $this->client->postAsync('/v1/chat/completions', [
             'json' => $payload,
         ]);
         
@@ -146,7 +146,7 @@ class OpenAIModel implements ModelInterface
                 'message_count' => count($messages),
             ]);
             
-            $response = $this->client->post('/chat/completions', [
+            $response = $this->client->post('/v1/chat/completions', [
                 'json' => $payload,
                 'stream' => true,
             ]);

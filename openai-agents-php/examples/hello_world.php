@@ -24,27 +24,27 @@ $agent = new Agent(
     instructions: "You are a helpful assistant that can tell people the weather.",
     tools: [$weatherTool],
     modelSettings: new ModelSettings(
-        model: 'gpt-4-turbo-preview',
+        model: 'gpt-4o',
         temperature: 0.7
     )
 );
 
 // User input
-$userInput = "What's the weather like in Tokyo today?";
+$userInput = "What's the weather like in São Paulo today?";
 
 try {
     // Run the agent
     echo "Running agent with input: {$userInput}\n";
     $result = Runner::runSync($agent, $userInput);
-    
+
     // Display the result
     echo "\nFinal output: " . $result->getFinalOutputAsString() . "\n";
-    
+
     // Display token usage
     $usage = $result->getTotalUsage();
     echo "\nToken usage: {$usage['total_tokens']} total tokens ";
     echo "({$usage['prompt_tokens']} prompt, {$usage['completion_tokens']} completion)\n";
-    
+
     // Print all steps
     echo "\nAgent steps:\n";
     foreach ($result->steps as $step) {

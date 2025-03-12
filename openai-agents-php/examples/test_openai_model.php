@@ -23,7 +23,7 @@ if (!$apiKey) {
 
 // Create model settings
 $modelSettings = new ModelSettings(
-    model: 'gpt-3.5-turbo',  // Using a less expensive model for testing
+    model: 'gpt-4o',
     temperature: 0.7
 );
 
@@ -64,7 +64,7 @@ try {
         flush();  // Flush output buffer to see streaming in real-time
     }
     echo "\n\nFull streamed content: $fullContent\n";
-    
+
     echo "\nAll tests completed successfully!\n";
 } catch (\Exception $e) {
     echo "Error: " . $e->getMessage() . "\n";

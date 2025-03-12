@@ -43,36 +43,181 @@ class Runner
      */
     public static function runSync(Agent $agent, string $input, array $options = []): Result
     {
-        $runner = new self();
+        // For error logging
+        $logger = $options['logger'] ?? new NullLogger();
         
-        // Wait for the promise to resolve
-        $promise = $runner->runInternal($agent, $input, $options);
+        // Get API key from options or environment
+        $apiKey = $options['api_key'] ?? getenv('OPENAI_API_KEY');
+        if (empty($apiKey)) {
+            throw new \InvalidArgumentException('OpenAI API key must be provided via OPENAI_API_KEY environment variable or in options');
+        }
         
-        // Simple promise resolution - in a real implementation, this would use
-        // a proper event loop or wait mechanism from React\Promise
-        $result = null;
-        $error = null;
+        $logger->debug('Starting synchronous agent run', [
+            'agent' => $agent->name,
+        ]);
         
-        $promise->then(
-            function ($value) use (&$result) {
-                $result = $value;
-            },
-            function ($reason) use (&$error) {
-                $error = $reason;
+        // Create a direct sync call to OpenAI with the current settings
+        $model = $options['model'] ?? new OpenAIModel($apiKey, $agent->modelSettings, $logger);
+        $maxTurns = $options['max_turns'] ?? self::DEFAULT_MAX_TURNS;
+        
+        // Initialize conversation
+        $messages = [
+            ['role' => 'system', 'content' => $agent->getSystemPrompt()],
+            ['role' => 'user', 'content' => $input]
+        ];
+        $steps = [];
+        $usage = [];
+        $currentTurn = 0;
+        
+        // Start processing turns
+        while ($currentTurn < $maxTurns) {
+            $currentTurn++;
+            
+            $logger->debug('Processing turn', ['turn' => $currentTurn]);
+            $steps[] = [
+                'turn' => $currentTurn,
+                'agent' => $agent,
+                'action' => 'thinking'
+            ];
+            
+            // Configure the model with tools if available
+            $modelOptions = $agent->modelSettings->toArray();
+            if (!empty($agent->tools)) {
+                $modelOptions['tools'] = $agent->getToolsConfig();
+                $modelOptions['tool_choice'] = 'auto';
             }
+            
+            // Generate response
+            $response = $model->generate($messages, $modelOptions);
+            
+            // Extract message
+            $assistantMessage = $response['choices'][0]['message'] ?? null;
+            if (!$assistantMessage) {
+                throw new \RuntimeException('No message in model response');
+            }
+            
+            $messages[] = $assistantMessage;
+            
+            // Track token usage
+            if (isset($response['usage'])) {
+                $usage[] = $response['usage'];
+            }
+            
+            // Process tool calls if any
+            if (isset($assistantMessage['tool_calls']) && !empty($assistantMessage['tool_calls'])) {
+                $toolCalls = $assistantMessage['tool_calls'];
+                $toolResponses = [];
+                
+                foreach ($toolCalls as $call) {
+                    if ($call['type'] !== 'function') {
+                        $logger->warning('Unsupported tool call type', [
+                            'type' => $call['type']
+                        ]);
+                        continue;
+                    }
+                    
+                    $function = $call['function'];
+                    $toolName = $function['name'];
+                    $toolArgs = json_decode($function['arguments'], true);
+                    
+                    $tool = $agent->findTool($toolName);
+                    
+                    if (!$tool) {
+                        $logger->warning('Tool not found', [
+                            'tool' => $toolName
+                        ]);
+                        $toolResponses[] = [
+                            'tool_call_id' => $call['id'],
+                            'role' => 'tool',
+                            'name' => $toolName,
+                            'content' => "Error: Tool '$toolName' not found"
+                        ];
+                        continue;
+                    }
+                    
+                    try {
+                        $logger->info('Executing tool', [
+                            'tool' => $toolName,
+                            'args' => $toolArgs
+                        ]);
+                        
+                        $steps[] = [
+                            'turn' => $currentTurn,
+                            'agent' => $agent,
+                            'action' => 'tool_call',
+                            'tool' => $toolName,
+                            'args' => $toolArgs
+                        ];
+                        
+                        $result = $tool->execute($toolArgs);
+                        
+                        $resultStr = is_string($result) ? $result : json_encode($result);
+                        
+                        $toolResponses[] = [
+                            'tool_call_id' => $call['id'],
+                            'role' => 'tool',
+                            'name' => $toolName,
+                            'content' => $resultStr
+                        ];
+                        
+                        $logger->info('Tool execution successful', [
+                            'tool' => $toolName
+                        ]);
+                    } catch (\Exception $e) {
+                        $logger->error('Tool execution failed', [
+                            'tool' => $toolName,
+                            'error' => $e->getMessage()
+                        ]);
+                        
+                        $toolResponses[] = [
+                            'tool_call_id' => $call['id'],
+                            'role' => 'tool',
+                            'name' => $toolName,
+                            'content' => "Error: {$e->getMessage()}"
+                        ];
+                    }
+                }
+                
+                // Add tool responses to messages and continue to next turn
+                $messages = array_merge($messages, $toolResponses);
+                continue; // Go to next turn
+            }
+            
+            // No tool calls, this is final output
+            $finalOutput = $assistantMessage['content'];
+            
+            $steps[] = [
+                'turn' => $currentTurn,
+                'agent' => $agent,
+                'action' => 'final_output',
+                'output' => $finalOutput
+            ];
+            
+            $logger->info('Agent completed with final output', [
+                'agent' => $agent->name,
+                'turns' => $currentTurn
+            ]);
+            
+            return new Result(
+                finalOutput: $finalOutput,
+                messages: $messages,
+                steps: $steps,
+                usage: $usage
+            );
+        }
+        
+        // If we reach here, we hit the max turn limit
+        $logger->warning('Reached maximum turns limit', [
+            'max_turns' => $maxTurns,
+            'agent' => $agent->name
+        ]);
+        
+        return new Result(
+            finalOutput: 'Maximum number of turns reached without final output',
+            messages: $messages,
+            steps: $steps,
+            usage: $usage
         );
-        
-        // Very simple Promise resolution - would need a proper event loop in real implementation
-        while ($result === null && $error === null) {
-            // Wait briefly to avoid CPU spinning
-            usleep(10000); // 10ms
-        }
-        
-        if ($error !== null) {
-            throw $error;
-        }
-        
-        return $result;
     }
     
     /**

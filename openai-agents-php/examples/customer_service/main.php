@@ -16,7 +16,7 @@ if (!$apiKey) {
 
 /**
  * Lookup frequently asked questions.
- * 
+ *
  * @param string $question The customer's question
  * @return string The answer to the question
  */
@@ -45,17 +45,17 @@ $passengerInfo = [
 
 /**
  * Update the seat for a given confirmation number.
- * 
+ *
  * @param string $confirmation_number The confirmation number for the flight
  * @param string $new_seat The new seat to update to
  * @return string Result message
  */
 function updateSeat(string $confirmation_number, string $new_seat): string {
     global $flightNumber, $passengerInfo;
-    
+
     $passengerInfo['confirmation'] = $confirmation_number;
     $passengerInfo['seat'] = $new_seat;
-    
+
     return "Updated seat to {$new_seat} for confirmation number {$confirmation_number} on flight {$flightNumber}";
 }
 
@@ -88,7 +88,7 @@ If the customer wants to update their seat:
 Maintain a helpful, professional tone at all times.",
     tools: [$faqTool, $seatTool],
     modelSettings: new ModelSettings(
-        model: 'gpt-3.5-turbo',
+        model: 'gpt-4o',
         temperature: 0.7
     )
 );
@@ -105,18 +105,18 @@ $questions = [
 
 foreach ($questions as $index => $question) {
     echo "Question " . ($index + 1) . ": " . $question . "\n\n";
-    
+
     try {
         echo "Processing...\n";
         $result = Runner::runSync(
-            $customerServiceAgent, 
+            $customerServiceAgent,
             $question,
             ['api_key' => $apiKey]
         );
-        
+
         // Display the result
         echo "Agent response: " . $result->getFinalOutputAsString() . "\n";
-        
+
         // Print steps information
         echo "\nSteps:\n";
         foreach ($result->steps as $step) {
@@ -126,9 +126,9 @@ foreach ($questions as $index => $question) {
             }
             echo "\n";
         }
-        
+
         echo "\n==========================================================\n\n";
-        
+
     } catch (\Exception $e) {
         echo "Error: " . $e->getMessage() . "\n";
     }

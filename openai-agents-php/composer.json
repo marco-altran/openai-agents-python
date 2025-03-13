@@ -8,6 +8,7 @@
         "guzzlehttp/guzzle": "^7.7",
         "opis/json-schema": "^2.3",
         "react/promise": "^3.0",
+        "react/event-loop": "^1.4",
         "psr/http-client": "^1.0",
         "psr/log": "^3.0"
     },
